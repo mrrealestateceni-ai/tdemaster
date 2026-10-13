@@ -1108,7 +1108,10 @@ $("bLista").onclick=mostrarLista;
 $("bFormacion").onclick=mostrarFormacion;
 $("abrirFormacion").onclick=function(){$("modal").hidden=false;mostrarFormacion()};
 $("bVolver").onclick=function(){if(VOLVER)VOLVER()};
-$("bFin").onclick=cerrarVentana;
+$("bFin").onclick=function(){
+  if(ALTA_REC){darDeAlta();cerrarVentana();return}
+  var m=$("msg");if(m)m.textContent="Primero enviá la ficha por WhatsApp o E-Mail; después tocá FINALIZAR para dar el alta. Para salir sin dar el alta, usá ← Volver.";
+};
 $("bAlta").onclick=darDeAlta;
 $("ok").onclick=closeAlrt;
 $("cSi").onclick=confirmarEliminar;
