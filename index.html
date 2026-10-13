@@ -1324,7 +1324,7 @@ function sha256Js(s){
 var ACC_USERS=[{"u": "MRtech", "s": "ec695fb9f48a00bbc984bbb8825f9dbe", "h": "a9dd58da848f844bc4fb310106f5fb7678ce43d80de202601e2f34aa444ef01f", "nombre": "MR TECH", "firma": "MR TECHNOLOGY", "perfil": "MASTER"}];
 /* ---- Acceso cifrado: 3 intentos, bloqueo progresivo ---- */
 var ACC_KEY="tde-acceso-estado", ACC_BASE=120000;
-var ACC={fails:0,tandas:0,until:0,tick:null};
+var ACC={fails:0,tandas:0,until:0,tick:null,busy:false};
 var ACC_VER="2";
 function accLeer(){try{var e=JSON.parse(localStorage.getItem(ACC_KEY)||"{}")||{};return e.v===ACC_VER?e:{}}catch(x){return {}}}
 function accGuardar(){try{localStorage.setItem(ACC_KEY,JSON.stringify({v:ACC_VER,fails:ACC.fails,tandas:ACC.tandas,until:ACC.until}))}catch(x){}}
@@ -1360,15 +1360,24 @@ function accFallo(){
   accSub("Intentos restantes: "+(3-ACC.fails)+".");
   $("acP").focus();
 }
-function accOk(u){
+var SESION={nombre:"",perfil:"",permisos:null}; /* permisos null = acceso total (MASTER del sistema) */
+function accOk(u,permisos){
   ACC.fails=0;ACC.tandas=0;ACC.until=0;accGuardar();
   accPintar();
   accMsg("Ciberseguridad - CIA - Aprobada",false);accSub("");
+  SESION={nombre:u.nombre||"",perfil:u.perfil||"",permisos:permisos||null};
   $("acBtn").disabled=true;
   setTimeout(function(){
     $("acBtn").disabled=false;$("acP").value="";$("acMsg").textContent="";
     $("acc").hidden=true;showHome();
   },1200);
+}
+function puede(k){return SESION.permisos===null||!!SESION.permisos[k]}
+function aplicarPermisos(){
+  var ids={personal:"mPersonal",formacion:"mFormacion",alta:"mAlta",generados:"mGenerados"};
+  for(var m in ids){$(ids[m]).hidden=!puede(m)}
+  $("sIngreso").hidden=!puede("personal.ingreso");
+  $("sPerfiles").hidden=!puede("personal.perfiles");
 }
 function accMostrar(msg,mal,sub){
   $("acc").hidden=false;$("acP").value="";
@@ -1376,16 +1385,31 @@ function accMostrar(msg,mal,sub){
   if(ACC.until<=Date.now())$("acU").focus();
 }
 function accEnviar(){
-  if(ACC.until>Date.now())return;
-  var u=$("acU").value,p=$("acP").value;
+  if(ACC.until>Date.now()||ACC.busy)return;
+  var u=$("acU").value.trim(),p=$("acP").value;
   if(!u||!p){accMsg("Ingresá usuario y clave.",true);return}
+  /* 1) Administrador del sistema (local) */
   var usr=null;
   for(var i=0;i<ACC_USERS.length;i++){if(ACC_USERS[i].u===u){usr=ACC_USERS[i];break}}
-  if(!usr){accFallo();return}
-  try{
-    var hh=sha256Js(usr.s+":"+p);
-    if(hh===usr.h)accOk(usr);else accFallo();
-  }catch(err){accMsg("No se pudo verificar la clave ("+err.message+").",true)}
+  if(usr){
+    try{
+      if(sha256Js(usr.s+":"+p)===usr.h)accOk({nombre:usr.nombre,perfil:usr.perfil},null);else accFallo();
+    }catch(err){accMsg("No se pudo verificar la clave ("+err.message+").",true)}
+    return;
+  }
+  /* 2) Personal registrado en PERSONAL (nube): usuario, clave y perfil */
+  ACC.busy=true;$("acBtn").disabled=true;accMsg("Verificando en la nube...");
+  sbReq("GET","personal?select=*&usuario=eq."+encodeURIComponent(u)+"&limit=1").then(function(rows){
+    var r=rows&&rows[0];
+    if(!r){ACC.busy=false;accFallo();return}
+    return sbReq("GET","perfiles?select=*&id=eq."+encodeURIComponent(r.perfil_id||"")+"&limit=1").then(function(pf){
+      ACC.busy=false;
+      if(sha256Js(r.salt+":"+p)!==r.clave_hash){accFallo();return}
+      var perfil=pf&&pf[0];
+      if(!perfil){accMsg("Este usuario no tiene un perfil válido. Revisalo en PERSONAL.",true);accPintar();return}
+      accOk({nombre:r.firma||r.usuario,perfil:perfil.nombre},perfil.permisos||{});
+    });
+  }).catch(function(e){ACC.busy=false;accPintar();accMsg("No se pudo verificar en la nube ("+e.message+").",true)});
 }
 $("acBtn").addEventListener("click",accEnviar);
 ["acU","acP"].forEach(function(id){
@@ -1413,7 +1437,12 @@ function abrirModulo(k){
   if(k==="personal"){$("spIngreso").hidden=true;$("spPerfiles").hidden=true}
   var st=document.querySelector(".stage");if(st)st.scrollTop=0;
 }
-function showHome(){$("home").hidden=false;abrirModulo("alta")}
+function showHome(){
+  $("home").hidden=false;aplicarPermisos();
+  var orden=["alta","personal","formacion","generados"];
+  var primero="generados";for(var i=0;i<orden.length;i++){if(puede(orden[i])){primero=orden[i];break}}
+  abrirModulo(primero);
+}
 function hideHome(){$("home").hidden=true}
 $("mPersonal").onclick=function(){abrirModulo("personal")};
 $("mFormacion").onclick=function(){abrirModulo("formacion")};
@@ -1421,7 +1450,7 @@ $("mAlta").onclick=function(){abrirModulo("alta")};
 $("mGenerados").onclick=function(){abrirModulo("generados")};
 $("btnFormacion").onclick=function(){$("abrirFormacion").click()};
 $("btnGenerados").onclick=function(){$("abrirLista").click()};
-$("mSalir").onclick=function(){hideHome();accMostrar("Sesión cerrada.",false,"Ingresá con otro usuario y clave.")};
+$("mSalir").onclick=function(){SESION={nombre:"",perfil:"",permisos:null};hideHome();accMostrar("Sesión cerrada.",false,"Ingresá con otro usuario y clave.")};
 /* ---- PERSONAL: ingreso del personal y perfiles (guardado en la nube) ---- */
 var PERMISOS_ARBOL=[
   {k:"personal",t:"PERSONAL",h:[["personal.ingreso","INGRESO DEL PERSONAL"],["personal.perfiles","PERFILES"]]},
