@@ -1105,7 +1105,7 @@ function mostrarLista(){
     var nube=res[1];
     var all=combinar(res[0],nube?nube[0]:null,nube?nube[1]:null).filter(function(r){return !!(r.valores&&r.valores._alta)});
     /* Solo el perfil MASTER ve los proyectos de todas las PARTNERSHIP; el resto ve solo los de su firma. */
-    if(!SESION.todos)all=all.filter(function(r){return partnerDe(r).firma===SESION.firma});
+    if(!SESION.todos)all=all.filter(function(r){return !!(r.valores&&r.valores._firma)&&r.valores._firma===SESION.firma});
     if(!nube)box.appendChild(notaEl("Sin conexión con la nube: se muestran solo los proyectos de este equipo."));
     if(AVISO_LISTA){box.appendChild(notaEl(AVISO_LISTA));AVISO_LISTA=""}
     all.sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha)});
@@ -1370,25 +1370,42 @@ function accFallo(){
   accSub("Intentos restantes: "+(3-ACC.fails)+".");
   $("acP").focus();
 }
-var SESION={firma:"",nombre:"",perfil:"",todos:false,permisos:null}; /* permisos null = acceso total (MASTER del sistema) */
+var SESION={firma:"",nombre:"",perfil:"",admin:false,todos:false,permisos:null}; /* todos = ve todo (MASTER); permisos null = acceso total */
 function accOk(u,permisos){
   ACC.fails=0;ACC.tandas=0;ACC.until=0;accGuardar();
   accPintar();
   accMsg("Ciberseguridad - CIA - Aprobada",false);accSub("");
-  SESION={firma:u.firma||"",nombre:u.nombre||"",perfil:u.perfil||"",todos:!!u.todos,permisos:permisos||null};
+  SESION={firma:u.firma||"",nombre:u.nombre||"",perfil:u.perfil||"",admin:!!u.admin,todos:!!u.todos,permisos:permisos||null};
   PARTNER_FIRMA=SESION.firma;PARTNER_NOMBRE=SESION.nombre;
+  PERSONAL_EDITANDO=null;PERFIL_EDITANDO=null;
   $("acBtn").disabled=true;
   setTimeout(function(){
     $("acBtn").disabled=false;$("acP").value="";$("acMsg").textContent="";
     $("acc").hidden=true;showHome();
   },1200);
 }
-function puede(k){return SESION.permisos===null||!!SESION.permisos[k]}
+function puede(k){return SESION.todos||SESION.permisos===null||!!SESION.permisos[k]}
+/* Un perfil es asignable si todos sus permisos los tiene quien lo asigna (MASTER asigna cualquiera). */
+function perfilAsignable(permisos){
+  if(SESION.todos)return true;
+  permisos=permisos||{};
+  return Object.keys(permisos).every(function(k){return !permisos[k]||puede(k)});
+}
+function esMaster(nombre){return /^master$/i.test(String(nombre||"").trim())}
+/* Un perfil se ve en PERFILES y en el selector de perfil si el usuario puede asignarlo. El perfil MASTER solo lo ve MASTER. */
+function perfilVisible(p){
+  if(SESION.todos)return true;
+  if(esMaster(p.nombre))return false;
+  return perfilAsignable(p.permisos);
+}
 function aplicarPermisos(){
   var ids={personal:"mPersonal",formacion:"mFormacion",alta:"mAlta",generados:"mGenerados"};
   for(var m in ids){$(ids[m]).hidden=!puede(m)}
   $("sIngreso").hidden=!puede("personal.ingreso");
   $("sPerfiles").hidden=!puede("personal.perfiles");
+  /* Quien no es MASTER carga personal solo para su PARTNERSHIP */
+  $("iFirma").readOnly=!SESION.todos;
+  if(!SESION.todos&&!PERSONAL_EDITANDO)$("iFirma").value=SESION.firma;
 }
 function accMostrar(msg,mal,sub){
   $("acc").hidden=false;$("acP").value="";
@@ -1404,13 +1421,14 @@ function accEnviar(){
   for(var i=0;i<ACC_USERS.length;i++){if(ACC_USERS[i].u===u){usr=ACC_USERS[i];break}}
   if(usr){
     try{
-      if(sha256Js(usr.s+":"+p)===usr.h)accOk({firma:usr.firma,nombre:usr.nombre,perfil:usr.perfil,todos:true},null);else accFallo();
+      if(sha256Js(usr.s+":"+p)===usr.h)accOk({firma:usr.firma,nombre:usr.nombre,perfil:usr.perfil,admin:true,todos:true},null);else accFallo();
     }catch(err){accMsg("No se pudo verificar la clave ("+err.message+").",true)}
     return;
   }
   /* 2) Personal registrado en PERSONAL (nube): usuario, clave y perfil */
   ACC.busy=true;$("acBtn").disabled=true;accMsg("Verificando en la nube...");
-  sbReq("GET","personal?select=*&usuario=eq."+encodeURIComponent(u)+"&limit=1").then(function(rows){
+  var usuarioBuscado=u.replace(/[\\%_]/g,function(c){return "\\"+c});
+  sbReq("GET","personal?select=*&usuario=ilike."+encodeURIComponent(usuarioBuscado)+"&limit=1").then(function(rows){
     var r=rows&&rows[0];
     if(!r){ACC.busy=false;accFallo();return}
     return sbReq("GET","perfiles?select=*&id=eq."+encodeURIComponent(r.perfil_id||"")+"&limit=1").then(function(pf){
@@ -1418,7 +1436,8 @@ function accEnviar(){
       if(sha256Js(r.salt+":"+p)!==r.clave_hash){accFallo();return}
       var perfil=pf&&pf[0];
       if(!perfil){accMsg("Este usuario no tiene un perfil válido. Revisalo en PERSONAL.",true);accPintar();return}
-      accOk({firma:r.firma||"",nombre:r.nombre_apellido||r.usuario,perfil:perfil.nombre,todos:/^master$/i.test(String(perfil.nombre||"").trim())},perfil.permisos||{});
+      var esMasterPerfil=esMaster(perfil.nombre);
+      accOk({firma:r.firma||"",nombre:r.nombre_apellido||r.usuario,perfil:perfil.nombre,admin:false,todos:esMasterPerfil},esMasterPerfil?null:(perfil.permisos||{}));
     });
   }).catch(function(e){ACC.busy=false;accPintar();accMsg("No se pudo verificar en la nube ("+e.message+").",true)});
 }
@@ -1466,7 +1485,7 @@ $("mAlta").onclick=function(){abrirModulo("alta")};
 $("mGenerados").onclick=function(){abrirModulo("generados")};
 $("btnFormacion").onclick=function(){$("abrirFormacion").click()};
 $("btnGenerados").onclick=function(){$("abrirLista").click()};
-$("mSalir").onclick=function(){SESION={firma:"",nombre:"",perfil:"",todos:false,permisos:null};hideHome();accMostrar("Sesión cerrada.",false,"Ingresá con otro usuario y clave.")};
+$("mSalir").onclick=function(){SESION={firma:"",nombre:"",perfil:"",admin:false,todos:false,permisos:null};hideHome();accMostrar("Sesión cerrada.",false,"Ingresá con otro usuario y clave.")};
 /* ---- PERSONAL: ingreso del personal y perfiles (guardado en la nube) ---- */
 var PERMISOS_ARBOL=[
   {k:"personal",t:"PERSONAL",h:[["personal.ingreso","INGRESO DEL PERSONAL"],["personal.perfiles","PERFILES"]]},
@@ -1493,14 +1512,19 @@ function cargarPersonalNube(){
 function pintarPerfilesSelect(){
   var sel=$("iPerfil");var prev=sel.value;sel.innerHTML="";
   var o=txtEl("option","",PERFILES_DATOS.length?"— Elegí un perfil —":"Primero creá un perfil en PERFILES");o.value="";sel.appendChild(o);
-  PERFILES_DATOS.forEach(function(p){var x=txtEl("option","",p.nombre);x.value=p.id;sel.appendChild(x)});
+  PERFILES_DATOS.filter(perfilVisible).forEach(function(p){var x=txtEl("option","",p.nombre);x.value=p.id;sel.appendChild(x)});
   if(prev)sel.value=prev;
+}
+/* Personal visible: MASTER ve todo; el resto solo el personal de su PARTNERSHIP. */
+function personalVisible(){
+  return SESION.todos?PERSONAL_DATOS:PERSONAL_DATOS.filter(function(u){return u.firma===SESION.firma});
 }
 var PERSONAL_EDITANDO=null;
 function pintarPersonal(){
   var box=$("iLista");box.innerHTML="";
-  if(!PERSONAL_DATOS.length){box.appendChild(txtEl("p","stCard",null)).textContent="Todavía no hay personal registrado.";return}
-  PERSONAL_DATOS.forEach(function(u){
+  var lista=personalVisible();
+  if(!lista.length){box.appendChild(txtEl("p","stCard",null)).textContent="Todavía no hay personal registrado.";return}
+  lista.forEach(function(u){
     var fila=txtEl("div","lstRow");
     var izq=txtEl("div","");izq.appendChild(txtEl("strong","",u.usuario+" · "+(u.firma||"")+(u.nombre_apellido?" · "+u.nombre_apellido:"")));izq.appendChild(txtEl("br"));izq.appendChild(txtEl("small","","Perfil: "+nombrePerfil(u.perfil_id)));
     var acc=txtEl("div","acciones");
@@ -1522,16 +1546,18 @@ function editarPersonal(u){
 }
 function cancelarEdicionPersonal(){
   PERSONAL_EDITANDO=null;
-  $("iFirma").value="";$("iNombre").value="";$("iUsuario").value="";$("iClave").value="";$("iPerfil").value="";
+  $("iFirma").value=SESION.todos?"":SESION.firma;$("iNombre").value="";$("iUsuario").value="";$("iClave").value="";$("iPerfil").value="";
   $("iGuardar").textContent="GUARDAR PERSONAL";$("iCancelar").hidden=true;msgEl("iMsg","");
 }
 $("iCancelar").onclick=cancelarEdicionPersonal;
 function pintarChecklist(sel){
   var box=$("pChecklist");box.innerHTML="";
+  /* Quien no es MASTER solo puede tildar los permisos que él mismo tiene */
+  function bloquear(c){c.disabled=!puede(c.getAttribute("data-k"))}
   PERMISOS_ARBOL.forEach(function(m){
     var grp=txtEl("div","chkGrp");
     var lp=txtEl("label","chkRow");var cb=txtEl("input");cb.type="checkbox";cb.setAttribute("data-k",m.k);cb.checked=!!sel[m.k];
-    cb.onchange=function(){m.h.forEach(function(h){var c=box.querySelector('input[data-k="'+h[0]+'"]');if(c)c.checked=cb.checked})};
+    cb.onchange=function(){m.h.forEach(function(h){var c=box.querySelector('input[data-k="'+h[0]+'"]');if(c&&!c.disabled)c.checked=cb.checked})};
     lp.appendChild(cb);lp.appendChild(document.createTextNode(m.t));grp.appendChild(lp);
     m.h.forEach(function(h){
       var lh=txtEl("label","chkRow hijo");var c2=txtEl("input");c2.type="checkbox";c2.setAttribute("data-k",h[0]);c2.checked=!!sel[h[0]];
@@ -1539,14 +1565,16 @@ function pintarChecklist(sel){
     });
     box.appendChild(grp);
   });
+  box.querySelectorAll("input[data-k]").forEach(bloquear);
 }
 function leerChecklist(){
   var r={};document.querySelectorAll("#pChecklist input[data-k]").forEach(function(c){r[c.getAttribute("data-k")]=c.checked});return r;
 }
 function pintarPerfiles(){
   var box=$("pLista");box.innerHTML="";
-  if(!PERFILES_DATOS.length){box.appendChild(txtEl("p","",null)).textContent="Todavía no hay perfiles creados.";return}
-  PERFILES_DATOS.forEach(function(p){
+  var lista=PERFILES_DATOS.filter(perfilVisible);
+  if(!lista.length){box.appendChild(txtEl("p","",null)).textContent="Todavía no hay perfiles creados.";return}
+  lista.forEach(function(p){
     var n=Object.keys(p.permisos||{}).filter(function(k){return p.permisos[k]}).length;
     var fila=txtEl("div","lstRow");
     var izq=txtEl("div","");izq.appendChild(txtEl("strong","",p.nombre));izq.appendChild(txtEl("br"));izq.appendChild(txtEl("small","",n+" módulos y submódulos habilitados"));
@@ -1574,6 +1602,11 @@ $("pGuardar").onclick=function(){
   var nombre=$("pNombre").value.trim();
   if(!nombre){msgEl("pMsg","Ingresá el nombre del perfil.",true);return}
   var permisos=leerChecklist();
+  var existente=null;
+  if(PERFIL_EDITANDO){for(var i=0;i<PERFILES_DATOS.length;i++){if(PERFILES_DATOS[i].id===PERFIL_EDITANDO){existente=PERFILES_DATOS[i];break}}}
+  if(!SESION.admin&&esMaster(nombre)&&!(existente&&esMaster(existente.nombre))){msgEl("pMsg","Solo MR TECH puede crear el perfil MASTER.",true);return}
+  if(existente&&!perfilVisible(existente)){msgEl("pMsg","No tenés permiso para modificar este perfil.",true);return}
+  if(!perfilAsignable(permisos)){msgEl("pMsg","No podés asignar permisos que tu propio perfil no tiene.",true);return}
   var id=PERFIL_EDITANDO||idNuevo("perf");
   msgEl("pMsg","Guardando en la nube...");
   sbReq("POST","perfiles",{id:id,nombre:nombre,permisos:permisos,updated_at:new Date().toISOString()},{"Prefer":"resolution=merge-duplicates,return=minimal"}).then(function(){
@@ -1583,8 +1616,12 @@ $("pGuardar").onclick=function(){
 };
 function aleatorio(){var a=new Uint8Array(12);(window.crypto||{}).getRandomValues?window.crypto.getRandomValues(a):a.forEach(function(_,i){a[i]=Math.floor(Math.random()*256)});return Array.from(a).map(function(b){return b.toString(16).padStart(2,"0")}).join("")}
 $("iGuardar").onclick=function(){
-  var firma=$("iFirma").value.trim(),nombre=$("iNombre").value.trim(),usuario=$("iUsuario").value.trim(),clave=$("iClave").value,perfil=$("iPerfil").value;
+  var firma=SESION.todos?$("iFirma").value.trim():SESION.firma,nombre=$("iNombre").value.trim(),usuario=$("iUsuario").value.trim(),clave=$("iClave").value,perfil=$("iPerfil").value;
   if(!firma){msgEl("iMsg","Ingresá el PARTNERSHIP.",true);return}
+  if(PERSONAL_EDITANDO&&!personalVisible().some(function(u){return u.id===PERSONAL_EDITANDO})){msgEl("iMsg","No tenés permiso para modificar este personal.",true);return}
+  var perfilObj=null;PERFILES_DATOS.forEach(function(p){if(p.id===perfil)perfilObj=p});
+  if(perfil&&!perfilObj){msgEl("iMsg","El perfil elegido ya no existe. Elegí otro.",true);return}
+  if(perfilObj&&!SESION.todos&&(esMaster(perfilObj.nombre)||!perfilAsignable(perfilObj.permisos))){msgEl("iMsg","No podés asignar un perfil con permisos que tu propio perfil no tiene.",true);return}
   if(!nombre){msgEl("iMsg","Ingresá el nombre y apellido.",true);return}
   if(usuario.length<3||/\s/.test(usuario)){msgEl("iMsg","El usuario debe tener 3 o más caracteres, sin espacios.",true);return}
   if(!PERSONAL_EDITANDO&&clave.length<6){msgEl("iMsg","La clave debe tener 6 o más caracteres.",true);return}
