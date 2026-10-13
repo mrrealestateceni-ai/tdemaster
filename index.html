@@ -316,7 +316,7 @@ a.btn{text-decoration:none;display:inline-block}
       </div>
       <div class="tabPanel perfiles" id="spPerfiles" hidden>
         <div class="stCard frmCard">
-          <h3 class="frmTit">PERFILES</h3>
+          
           <label>Nombre del perfil<input id="pNombre" type="text" autocomplete="off"></label>
           <div class="chkTit">Módulos y submódulos que verá este perfil</div>
           <div id="pChecklist" class="chkList"></div>
@@ -855,8 +855,13 @@ function registroActual(){
     else valores[d.k]=val(d.k);
   })});
   valores._firma=PARTNER_FIRMA;valores._nombre=PARTNER_NOMBRE;valores._usuario=SESION.usuario||"";
-  return {id:Date.now(),negocio:val("negocio"),persona:val("persona"),plan:$("plan").value,
-          fecha:new Date().toISOString(),valores:valores,files:files};
+  var base=EDITANDO;
+  if(base){
+    var vo=base.valores||{};
+    ["_firma","_nombre","_usuario","_alta","_fecha_alta"].forEach(function(k){if(vo[k]!==undefined)valores[k]=vo[k];else delete valores[k]});
+  }
+  return {id:base?base.id:Date.now(),negocio:val("negocio"),persona:val("persona"),plan:$("plan").value,
+          fecha:base?base.fecha:new Date().toISOString(),valores:valores,files:files};
 }
 /* Dueño del proyecto: PARTNERSHIP y nombre que lo generaron (los proyectos anteriores quedan con los datos originales). */
 function partnerDe(rec){
@@ -1141,7 +1146,6 @@ function armarPanelLista(scope){
   var panel=panelDeLista(scope);
   Array.prototype.slice.call(panel.children).forEach(function(c){if(!c.classList.contains("pHero"))c.remove()});
   var card=txtEl("div","stCard frmCard");
-  card.appendChild(txtEl("h3","frmTit",scope==="finalizados"?"PROYECTOS FINALIZADOS":"PROYECTOS GENERADOS"));
   if(SESION.todos){
     var bar=txtEl("div","filtrosP");
     var campo=function(lbl,el){var w=txtEl("label","");w.appendChild(txtEl("span","",lbl));w.appendChild(el);return w};
@@ -1197,10 +1201,11 @@ function pintarLista(scope){
     var b=mk("button","btn");b.type="button";b.textContent="Abrir";b.onclick=function(){abrirGuardado(r)};
     acc.appendChild(b);
     if(scope==="generados"){
-      var mr=mk("button","btn mrv");mr.type="button";mr.textContent="MR TECH";
+      var mod=mk("button","btn sec");mod.type="button";mod.textContent="Modificar";
+      mod.onclick=function(){prepararArchivos(r).then(function(){modificarProyecto(r)},mostrarErrorLista)};
+      var mr=mk("button","btn rojo");mr.type="button";mr.textContent="Eliminar MR Tech";
       mr.onclick=function(){pedirClaveMR(function(){prepararArchivos(r).then(function(){abrirMR(r)},mostrarErrorLista)})};
-      var del=mk("button","btn rojo");del.type="button";del.textContent="ELIMINAR";del.onclick=function(){pedirEliminar(r)};
-      acc.appendChild(mr);acc.appendChild(del);
+      acc.appendChild(mod);acc.appendChild(mr);
     }else{
       c.appendChild(notaEl("FINALIZADO por MR TECH · "+fechaCorta(r.fechaCierre)));
     }
@@ -1225,9 +1230,47 @@ function abrirGuardado(r){
 }
 
 /* ---- Ventana principal (desde GENERAR) ---- */
+/* ---- Modificar un proyecto generado: carga sus datos en ALTAS; GENERAR guarda los cambios ---- */
+var EDITANDO=null;
+function modificarProyecto(rec){
+  nuevo();
+  EDITANDO=rec;
+  var v=rec.valores||{};
+  SECTIONS.forEach(function(sec){sec.f.forEach(function(d){
+    if(d.sub||d.type==="file"||d.type==="loc")return;
+    var e=$(d.k);if(e&&v[d.k]!=null)e.value=v[d.k];
+  })});
+  $("plan").value=rec.plan||"";
+  $("prov").value=v.prov||"";
+  fillLoc();
+  if(v.loc){
+    var sl=$("loc"),hay=false;
+    for(var i=0;i<sl.options.length;i++){if(sl.options[i].value===v.loc){hay=true;break}}
+    if(hay)sl.value=v.loc;else{sl.value="__otra";$("loc_otra").hidden=false;$("loc_otra").value=v.loc}
+  }
+  applyPlan();updPcalc();
+  SECTIONS.forEach(function(sec){sec.f.forEach(function(d){
+    if(d.type!=="file")return;
+    var arr=(rec.files&&rec.files[d.k])||[];
+    FILES[d.k]=arr.slice();
+    var fl=$("fl_"+d.k);if(fl)fl.textContent=arr.map(function(f){return f.name}).join(", ");
+  })});
+  mostrarBannerEdicion(rec);
+  abrirModulo("alta");
+  $("persona").focus();
+}
+function mostrarBannerEdicion(rec){
+  var b=$("editInfo");
+  if(!b){b=mk("div");b.id="editInfo";b.style.cssText="border:1px solid #33E8FF;border-radius:10px;padding:10px 12px;margin:0 0 12px;color:#7ff3ff;background:rgba(51,232,255,.08);display:flex;flex-wrap:wrap;gap:8px;align-items:center";F.insertBefore(b,F.firstChild)}
+  b.innerHTML="";
+  var t=mk("span");t.textContent="MODIFICANDO: "+(rec.negocio||"(sin nombre)")+" · al tocar GENERAR se guardan los cambios.";b.appendChild(t);
+  var c=mk("button","btn sec");c.type="button";c.textContent="CANCELAR MODIFICACIÓN";c.onclick=function(){cancelarModificacion()};b.appendChild(c);
+  b.hidden=false;
+}
+function cancelarModificacion(){EDITANDO=null;var b=$("editInfo");if(b)b.hidden=true;nuevo()}
 function openModal(){
   ALTA_REC=null;
-  ACTUAL=registroActual();
+  ACTUAL=registroActual();EDITANDO=null;
   ACTUAL.ficha=fichaDe(ACTUAL);
   ACTUAL.formulario=formDe(ACTUAL);
   $("modal").hidden=false;
@@ -1266,7 +1309,8 @@ function closeAlrt(){
 
 function nuevo(){
   cerrarVentana();
-  ACTUAL=null;VOLVER=null;ALTA_REC=null;
+  ACTUAL=null;VOLVER=null;ALTA_REC=null;EDITANDO=null;
+  var bEd=$("editInfo");if(bEd)bEd.hidden=true;
   Object.keys(FILES).forEach(function(k){delete FILES[k]});
   F.reset();
   fillLoc();applyPlan();
