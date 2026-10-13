@@ -225,6 +225,29 @@ a.btn{text-decoration:none;display:inline-block}
 .regresar{background:none;border:none;color:#8fb0ba;font-family:inherit;font-size:.82rem;font-weight:600;letter-spacing:2.5px;cursor:pointer;padding:6px 2px;transition:color .2s}
 .regresar:hover,.regresar:focus-visible{color:#33E8FF}
 .regresar:focus-visible{outline:1px solid #33E8FF;outline-offset:4px;border-radius:4px}
+/* ---- PERSONAL: distribución horizontal ---- */
+.stage{padding:14px 22px 24px}
+.pHero{margin:0 0 12px}
+.pHero img{width:min(620px,100%)}
+.tabs{display:flex;gap:0;justify-content:stretch;margin:0 0 18px;border-bottom:1px solid rgba(51,232,255,.22)}
+.tab{flex:1 1 0;display:flex;justify-content:center;align-items:flex-end;padding:4px 10px 8px;border-left:1px solid rgba(51,232,255,.14)}
+.tab:first-child{border-left:none}
+.tab img{width:100%;max-width:360px}
+.tabPanel{display:grid;grid-template-columns:minmax(320px,1fr) minmax(320px,1.2fr);gap:16px;align-items:start}
+.tabPanel .frmCard{max-width:none;margin-top:0}
+.chkList{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.chkGrp{display:grid;gap:6px;align-content:start}
+.tabFoot{margin-top:6px}
+@media (max-width:900px){.tabPanel{grid-template-columns:1fr}.tab img{max-width:none}}
+/* ---- PERSONAL: ajuste fino de espacios ---- */
+.pHero{margin:0 0 4px}
+.pHero img{width:min(460px,100%)}
+.tab img{max-width:300px}
+.tabs{margin:0 0 14px}
+.tabPanel.perfiles{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.frmCard .chkRow{display:flex;flex-direction:row;align-items:center;gap:10px;font-weight:700}
+.chkList{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px 18px;padding:14px}
+@media (max-width:900px){.tabPanel.perfiles{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -284,7 +307,7 @@ a.btn{text-decoration:none;display:inline-block}
         </div>
         <div class="stCard frmCard"><h3 class="frmTit">PERSONAL REGISTRADO</h3><div id="iLista"></div></div>
       </div>
-      <div class="tabPanel" id="spPerfiles" hidden>
+      <div class="tabPanel perfiles" id="spPerfiles" hidden>
         <div class="stCard frmCard">
           <h3 class="frmTit">PERFILES</h3>
           <label>Nombre del perfil<input id="pNombre" type="text" autocomplete="off"></label>
@@ -1443,13 +1466,15 @@ function pintarPersonal(){
 function pintarChecklist(sel){
   var box=$("pChecklist");box.innerHTML="";
   PERMISOS_ARBOL.forEach(function(m){
+    var grp=txtEl("div","chkGrp");
     var lp=txtEl("label","chkRow");var cb=txtEl("input");cb.type="checkbox";cb.setAttribute("data-k",m.k);cb.checked=!!sel[m.k];
     cb.onchange=function(){m.h.forEach(function(h){var c=box.querySelector('input[data-k="'+h[0]+'"]');if(c)c.checked=cb.checked})};
-    lp.appendChild(cb);lp.appendChild(document.createTextNode(m.t));box.appendChild(lp);
+    lp.appendChild(cb);lp.appendChild(document.createTextNode(m.t));grp.appendChild(lp);
     m.h.forEach(function(h){
       var lh=txtEl("label","chkRow hijo");var c2=txtEl("input");c2.type="checkbox";c2.setAttribute("data-k",h[0]);c2.checked=!!sel[h[0]];
-      lh.appendChild(c2);lh.appendChild(document.createTextNode(h[1]));box.appendChild(lh);
+      lh.appendChild(c2);lh.appendChild(document.createTextNode(h[1]));grp.appendChild(lh);
     });
+    box.appendChild(grp);
   });
 }
 function leerChecklist(){
