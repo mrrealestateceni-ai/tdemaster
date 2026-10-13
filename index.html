@@ -1503,10 +1503,19 @@ function confirmarDos(btn,fn){
   btn.dataset.ok="1";btn.textContent="CONFIRMAR";
   setTimeout(function(){btn.dataset.ok="";btn.textContent="ELIMINAR"},3000);
 }
+var FALTA_NOMBRE_COL=false;
 function cargarPersonalNube(){
-  return Promise.all([sbReq("GET","perfiles?select=*&order=nombre"),sbReq("GET","personal?select=id,firma,nombre_apellido,usuario,perfil_id&order=usuario")]).then(function(r){
+  var pf=sbReq("GET","perfiles?select=*&order=nombre");
+  /* Si la columna nombre_apellido todavía no existe en Supabase, se leen igual los datos del personal. */
+  var ps=sbReq("GET","personal?select=id,firma,nombre_apellido,usuario,perfil_id&order=usuario").then(function(r){FALTA_NOMBRE_COL=false;return r},function(e){
+    if(!/nombre_apellido/.test(e.message))throw e;
+    FALTA_NOMBRE_COL=true;
+    return sbReq("GET","personal?select=id,firma,usuario,perfil_id&order=usuario");
+  });
+  return Promise.all([pf,ps]).then(function(r){
     PERFILES_DATOS=r[0]||[];PERSONAL_DATOS=r[1]||[];
     pintarPerfilesSelect();pintarPersonal();pintarPerfiles();
+    if(FALTA_NOMBRE_COL)msgEl("iMsg","Falta crear la columna nombre_apellido en Supabase (SQL en el chat). Hasta entonces, el nombre no se guarda.",true);
   },function(e){msgEl("iMsg","No se pudo leer la nube: "+e.message,true);msgEl("pMsg","No se pudo leer la nube: "+e.message,true)});
 }
 function pintarPerfilesSelect(){
