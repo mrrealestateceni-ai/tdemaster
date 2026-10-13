@@ -222,9 +222,7 @@ a.btn{text-decoration:none;display:inline-block}
      <button class="btn sec" id="bNuevo" type="button" hidden>+ Cargar otro proyecto</button>
      <button class="btn" id="bLista" type="button" hidden>Proyectos GENERADOS</button>
      <button class="btn sec" id="bFormacion" type="button" hidden>FORMACIÓN</button>
-     <button class="btn" id="bFin" type="button">FINALIZAR</button>
    </div>
-   <button class="btn flotante" id="bAlta" type="button" hidden>FINALIZAR</button>
   </main>
   <div id="mft"></div>
  </div>
@@ -810,11 +808,7 @@ function avisoEl(){
   d.innerHTML="<b>Aviso:</b> Los campos de LOGO, FOTO y DESCARGAS DE FORMULARIO son para ser utilizados por MR Master y el desarrollo de la TDE Master.";
   return d;
 }
-function marcarEnvio(rec,guardado){
-  if(guardado)return;
-  ALTA_REC=rec;
-  $("bAlta").hidden=false;
-}
+function marcarEnvio(){}
 function bloqueEnvio(rec,guardado){
   var row=mk("div","row"),
       bw=mk("button","sendbtn wsp");bw.type="button";bw.innerHTML=ICON_WSP+" WhatsApp";
@@ -822,6 +816,12 @@ function bloqueEnvio(rec,guardado){
   var be=mk("button","sendbtn mail");be.type="button";be.innerHTML=ICON_MAIL+" E-Mail";
   be.onclick=function(){location.href="mailto:"+MAIL+"?subject="+encodeURIComponent("Form. TDE Finalizado - "+rec.negocio)+"&body="+encodeURIComponent(resumenDe(rec));marcarEnvio(rec,guardado)};
   row.appendChild(bw);row.appendChild(be);
+  if(!(rec.valores&&rec.valores._alta)){
+    var bf=mk("button","btn");bf.type="button";bf.textContent="FINALIZAR";
+    bf.style.marginLeft="auto";
+    bf.onclick=function(){darDeAlta(rec);cerrarVentana()};
+    row.appendChild(bf);
+  }
   var pre=mk("pre","prev");pre.textContent=resumenDe(rec);
   var msg=mk("div","err");msg.id="msg";msg.setAttribute("role","status");
   return bloque("Ficha finalizada",[notaEl("Enviala por:"),row,notaEl("Se envía solo este detalle:"),pre,msg]);
@@ -874,7 +874,6 @@ var ALTA_REC=null;
 function setVista(v,cfg){
   ["vistaProy","vistaLista","vistaForm","vistaFormacion"].forEach(function(id){$(id).hidden=(id!==v)});
   $("mt").textContent=(v==="vistaLista")?"PROYECTOS GENERADOS":(v==="vistaFormacion")?"FORMACIÓN":"DATA TDE MASTER";
-  $("bAlta").hidden=!(v==="vistaProy"&&ALTA_REC);
   $("bFormacion").hidden=!cfg.lista;
   $("bNuevo").hidden=!cfg.nuevo;
   $("bLista").hidden=!cfg.lista;
@@ -1000,9 +999,9 @@ function openModal(){
 }
 function cerrarVentana(){$("modal").hidden=true;$("gen").focus()}
 /* ALTA GENERADA: el partnership toca FINALIZAR después de enviar la ficha. */
-function darDeAlta(){
-  var rec=ALTA_REC;if(!rec)return;
-  ALTA_REC=null;$("bAlta").hidden=true;
+function darDeAlta(rec){
+  if(!rec)return;
+  ALTA_REC=null;
   rec.valores=rec.valores||{};
   rec.valores._alta=true;rec.valores._fecha_alta=new Date().toISOString();
   dbPut(rec).then(function(){
@@ -1108,11 +1107,6 @@ $("bLista").onclick=mostrarLista;
 $("bFormacion").onclick=mostrarFormacion;
 $("abrirFormacion").onclick=function(){$("modal").hidden=false;mostrarFormacion()};
 $("bVolver").onclick=function(){if(VOLVER)VOLVER()};
-$("bFin").onclick=function(){
-  if(ALTA_REC){darDeAlta();cerrarVentana();return}
-  var m=$("msg");if(m)m.textContent="Primero enviá la ficha por WhatsApp o E-Mail; después tocá FINALIZAR para dar el alta. Para salir sin dar el alta, usá ← Volver.";
-};
-$("bAlta").onclick=darDeAlta;
 $("ok").onclick=closeAlrt;
 $("cSi").onclick=confirmarEliminar;
 $("cNo").onclick=cerrarEliminar;
