@@ -136,7 +136,7 @@ a.btn{text-decoration:none;display:inline-block}
 .pcard .clave{margin:3px 0;font-weight:700;color:#000}
 
 /* ---- Acceso cifrado TDE MASTER ---- */
-.acc{position:fixed;inset:0;background:#000;z-index:9999;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px 16px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff}
+.acc{position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(51,232,255,.30) 0%,rgba(51,232,255,.08) 45%,#020b14 80%);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px 16px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff}
 .acc[hidden]{display:none!important}
 .acbox{max-width:520px;width:100%;text-align:center;margin:auto}
 .achead{display:flex;align-items:center;justify-content:center;gap:18px;padding:14px 18px;border:1px solid rgba(51,232,255,.2);border-radius:16px;background:radial-gradient(ellipse at center,#06202e 0%,#020b14 75%)}
@@ -163,7 +163,7 @@ a.btn{text-decoration:none;display:inline-block}
 @media (max-width:440px){.achead{gap:10px;padding:12px}.acLt{height:70px}.acLc{height:84px}}
 
 /* ---- Pantalla de inicio (5 s) ---- */
-.splash{position:fixed;inset:0;z-index:20000;background:radial-gradient(ellipse at center,#06202e 0%,#000 75%);display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .7s}
+.splash{position:fixed;inset:0;z-index:20000;background:radial-gradient(ellipse at center,rgba(51,232,255,.30) 0%,rgba(51,232,255,.08) 45%,#020b14 80%);display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .7s}
 .splash.out{opacity:0;pointer-events:none}
 .splash[hidden]{display:none!important}
 .splLogo{position:relative;z-index:2;width:min(86vw,760px);height:auto;opacity:0;transform:scale(.92);animation:splIn 1.4s ease-out .2s forwards,splGlow 2.4s ease-in-out 1.6s infinite}
@@ -175,7 +175,7 @@ a.btn{text-decoration:none;display:inline-block}
 .spark{position:absolute;width:4px;height:4px;border-radius:50%;background:#7ff3ff;box-shadow:0 0 8px #33E8FF;opacity:0;animation:spk 2s ease-in-out infinite}
 @keyframes spk{0%{opacity:0;transform:scale(.4)}40%{opacity:1;transform:scale(1.4)}100%{opacity:0;transform:scale(.4)}}
 /* ---- Ventana SaaS: barra de módulos (izquierda) + espacio de trabajo (derecha) ---- */
-.home{position:fixed;inset:0;z-index:9000;display:grid;grid-template-columns:300px 1fr;background:radial-gradient(ellipse at top right,#06202e 0%,#020b14 70%);color:#e8fbff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+.home{position:fixed;inset:0;z-index:9000;display:grid;grid-template-columns:300px 1fr;background:radial-gradient(ellipse at top right,rgba(51,232,255,.38) 0%,rgba(51,232,255,0) 60%),linear-gradient(180deg,rgba(51,232,255,.16) 0%,rgba(51,232,255,.04) 45%,rgba(2,11,20,.95) 100%),#020b14;color:#e8fbff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
 .home[hidden]{display:none!important}
 .side{margin:12px 0 12px 12px;border-radius:18px;padding:18px;background:#33E8FF;color:#021014;box-shadow:0 0 32px rgba(51,232,255,.45);display:flex;flex-direction:column;gap:14px;overflow:auto}
 .sideLogo{background:#020b14;border-radius:12px;padding:10px;border:1px solid rgba(51,232,255,.4)}
@@ -1326,7 +1326,7 @@ $("acBtn").addEventListener("click",accEnviar);
   for(var i=0;i<28;i++){var k=document.createElement("i");k.className="spark";
     k.style.left=(Math.random()*100)+"%";k.style.top=(Math.random()*100)+"%";
     k.style.animationDelay=(Math.random()*4)+"s";k.style.animationDuration=(1.2+Math.random()*1.8)+"s";cont.appendChild(k)}
-  setTimeout(function(){sp.classList.add("out");showHome();setTimeout(function(){sp.hidden=true},700)},5000);
+  setTimeout(function(){sp.classList.add("out");setTimeout(function(){sp.hidden=true;accMostrar("",false,"")},700)},5000);
 })();
 var PANELES={personal:"pPersonal",formacion:"pFormacion",alta:"pAlta"};
 function abrirModulo(k){
