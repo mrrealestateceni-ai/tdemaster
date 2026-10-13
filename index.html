@@ -849,7 +849,7 @@ function registroActual(){
     if(d.type==="file")files[d.k]=(FILES[d.k]||[]).slice();
     else valores[d.k]=val(d.k);
   })});
-  valores._firma=PARTNER_FIRMA;valores._nombre=PARTNER_NOMBRE;
+  valores._firma=PARTNER_FIRMA;valores._nombre=PARTNER_NOMBRE;valores._usuario=SESION.usuario||"";
   return {id:Date.now(),negocio:val("negocio"),persona:val("persona"),plan:$("plan").value,
           fecha:new Date().toISOString(),valores:valores,files:files};
 }
@@ -1105,7 +1105,8 @@ function mostrarLista(){
     var nube=res[1];
     var all=combinar(res[0],nube?nube[0]:null,nube?nube[1]:null).filter(function(r){return !!(r.valores&&r.valores._alta)});
     /* Solo el perfil MASTER ve los proyectos de todas las PARTNERSHIP; el resto ve solo los de su firma. */
-    if(!SESION.todos)all=all.filter(function(r){return !!(r.valores&&r.valores._firma)&&r.valores._firma===SESION.firma});
+    /* Cada usuario ve solo los proyectos que generó con su propio usuario y clave. */
+    if(!SESION.todos)all=all.filter(function(r){return !!(r.valores&&r.valores._usuario)&&r.valores._usuario===SESION.usuario});
     if(!nube)box.appendChild(notaEl("Sin conexión con la nube: se muestran solo los proyectos de este equipo."));
     if(AVISO_LISTA){box.appendChild(notaEl(AVISO_LISTA));AVISO_LISTA=""}
     all.sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha)});
@@ -1370,12 +1371,12 @@ function accFallo(){
   accSub("Intentos restantes: "+(3-ACC.fails)+".");
   $("acP").focus();
 }
-var SESION={firma:"",nombre:"",perfil:"",admin:false,todos:false,permisos:null}; /* todos = ve todo (MASTER); permisos null = acceso total */
+var SESION={usuario:"",firma:"",nombre:"",perfil:"",admin:false,todos:false,permisos:null}; /* todos = ve todo (MASTER); permisos null = acceso total */
 function accOk(u,permisos){
   ACC.fails=0;ACC.tandas=0;ACC.until=0;accGuardar();
   accPintar();
   accMsg("Ciberseguridad - CIA - Aprobada",false);accSub("");
-  SESION={firma:u.firma||"",nombre:u.nombre||"",perfil:u.perfil||"",admin:!!u.admin,todos:!!u.todos,permisos:permisos||null};
+  SESION={usuario:u.usuario||"",firma:u.firma||"",nombre:u.nombre||"",perfil:u.perfil||"",admin:!!u.admin,todos:!!u.todos,permisos:permisos||null};
   PARTNER_FIRMA=SESION.firma;PARTNER_NOMBRE=SESION.nombre;
   PERSONAL_EDITANDO=null;PERFIL_EDITANDO=null;
   $("acBtn").disabled=true;
@@ -1421,7 +1422,7 @@ function accEnviar(){
   for(var i=0;i<ACC_USERS.length;i++){if(ACC_USERS[i].u===u){usr=ACC_USERS[i];break}}
   if(usr){
     try{
-      if(sha256Js(usr.s+":"+p)===usr.h)accOk({firma:usr.firma,nombre:usr.nombre,perfil:usr.perfil,admin:true,todos:true},null);else accFallo();
+      if(sha256Js(usr.s+":"+p)===usr.h)accOk({usuario:usr.u,firma:usr.firma,nombre:usr.nombre,perfil:usr.perfil,admin:true,todos:true},null);else accFallo();
     }catch(err){accMsg("No se pudo verificar la clave ("+err.message+").",true)}
     return;
   }
@@ -1437,7 +1438,7 @@ function accEnviar(){
       var perfil=pf&&pf[0];
       if(!perfil){accMsg("Este usuario no tiene un perfil válido. Revisalo en PERSONAL.",true);accPintar();return}
       var esMasterPerfil=esMaster(perfil.nombre);
-      accOk({firma:r.firma||"",nombre:r.nombre_apellido||r.usuario,perfil:perfil.nombre,admin:false,todos:esMasterPerfil},esMasterPerfil?null:(perfil.permisos||{}));
+      accOk({usuario:r.usuario,firma:r.firma||"",nombre:r.nombre_apellido||r.usuario,perfil:perfil.nombre,admin:false,todos:esMasterPerfil},esMasterPerfil?null:(perfil.permisos||{}));
     });
   }).catch(function(e){ACC.busy=false;accPintar();accMsg("No se pudo verificar en la nube ("+e.message+").",true)});
 }
@@ -1486,7 +1487,7 @@ $("mGenerados").onclick=function(){abrirModulo("generados")};
 $("btnFormacion").onclick=function(){$("abrirFormacion").click()};
 $("btnGenerados").onclick=function(){$("abrirLista").click()};
 $("regGenerados").onclick=function(){showHome()};
-$("mSalir").onclick=function(){SESION={firma:"",nombre:"",perfil:"",admin:false,todos:false,permisos:null};hideHome();accMostrar("Sesión cerrada.",false,"Ingresá con otro usuario y clave.")};
+$("mSalir").onclick=function(){SESION={usuario:"",firma:"",nombre:"",perfil:"",admin:false,todos:false,permisos:null};hideHome();accMostrar("Sesión cerrada.",false,"Ingresá con otro usuario y clave.")};
 /* ---- PERSONAL: ingreso del personal y perfiles (guardado en la nube) ---- */
 var PERMISOS_ARBOL=[
   {k:"personal",t:"PERSONAL",h:[["personal.ingreso","INGRESO DEL PERSONAL"],["personal.perfiles","PERFILES"]]},
