@@ -303,6 +303,7 @@ a.btn{text-decoration:none;display:inline-block}
           <label>Clave<small>Mínimo 6 caracteres</small><input id="iClave" type="password" autocomplete="new-password"></label>
           <label>Perfil<small>Perfiles creados en PERFILES</small><select id="iPerfil"></select></label>
           <button type="button" class="btn" id="iGuardar">GUARDAR PERSONAL</button>
+          <button type="button" class="btn sec" id="iCancelar" hidden>CANCELAR EDICIÓN</button>
           <div class="frmMsg" id="iMsg" role="status"></div>
         </div>
         <div class="stCard frmCard"><h3 class="frmTit">PERSONAL REGISTRADO</h3><div id="iLista"></div></div>
@@ -1450,19 +1451,36 @@ function pintarPerfilesSelect(){
   PERFILES_DATOS.forEach(function(p){var x=txtEl("option","",p.nombre);x.value=p.id;sel.appendChild(x)});
   if(prev)sel.value=prev;
 }
+var PERSONAL_EDITANDO=null;
 function pintarPersonal(){
   var box=$("iLista");box.innerHTML="";
   if(!PERSONAL_DATOS.length){box.appendChild(txtEl("p","stCard",null)).textContent="Todavía no hay personal registrado.";return}
   PERSONAL_DATOS.forEach(function(u){
     var fila=txtEl("div","lstRow");
     var izq=txtEl("div","");izq.appendChild(txtEl("strong","",u.usuario+" · "+(u.firma||"")));izq.appendChild(txtEl("br"));izq.appendChild(txtEl("small","","Perfil: "+nombrePerfil(u.perfil_id)));
-    var acc=txtEl("div","acciones");var b=txtEl("button","peligro","ELIMINAR");
+    var acc=txtEl("div","acciones");
+    var be=txtEl("button","","EDITAR");be.type="button";be.onclick=function(){editarPersonal(u)};
+    var b=txtEl("button","peligro","ELIMINAR");
     b.type="button";b.onclick=function(){confirmarDos(b,function(){
-      sbReq("DELETE","personal?id=eq."+encodeURIComponent(u.id)).then(function(){cargarPersonalNube()},function(e){msgEl("iMsg","No se pudo eliminar: "+e.message,true)});
+      sbReq("DELETE","personal?id=eq."+encodeURIComponent(u.id)).then(function(){if(PERSONAL_EDITANDO===u.id)cancelarEdicionPersonal();cargarPersonalNube()},function(e){msgEl("iMsg","No se pudo eliminar: "+e.message,true)});
     })};
-    acc.appendChild(b);fila.appendChild(izq);fila.appendChild(acc);box.appendChild(fila);
+    acc.appendChild(be);acc.appendChild(b);fila.appendChild(izq);fila.appendChild(acc);box.appendChild(fila);
   });
 }
+function editarPersonal(u){
+  PERSONAL_EDITANDO=u.id;
+  $("iFirma").value=u.firma||"";$("iUsuario").value=u.usuario||"";$("iClave").value="";
+  pintarPerfilesSelect();$("iPerfil").value=u.perfil_id||"";
+  $("iGuardar").textContent="ACTUALIZAR PERSONAL";$("iCancelar").hidden=false;
+  msgEl("iMsg","Editando: "+u.usuario+" · Si dejás la clave vacía, se mantiene la actual.");
+  $("iFirma").scrollIntoView({behavior:"smooth",block:"center"});
+}
+function cancelarEdicionPersonal(){
+  PERSONAL_EDITANDO=null;
+  $("iFirma").value="";$("iUsuario").value="";$("iClave").value="";$("iPerfil").value="";
+  $("iGuardar").textContent="GUARDAR PERSONAL";$("iCancelar").hidden=true;msgEl("iMsg","");
+}
+$("iCancelar").onclick=cancelarEdicionPersonal;
 function pintarChecklist(sel){
   var box=$("pChecklist");box.innerHTML="";
   PERMISOS_ARBOL.forEach(function(m){
@@ -1523,9 +1541,21 @@ $("iGuardar").onclick=function(){
   var firma=$("iFirma").value.trim(),usuario=$("iUsuario").value.trim(),clave=$("iClave").value,perfil=$("iPerfil").value;
   if(!firma){msgEl("iMsg","Ingresá la firma.",true);return}
   if(usuario.length<3||/\s/.test(usuario)){msgEl("iMsg","El usuario debe tener 3 o más caracteres, sin espacios.",true);return}
-  if(clave.length<6){msgEl("iMsg","La clave debe tener 6 o más caracteres.",true);return}
+  if(!PERSONAL_EDITANDO&&clave.length<6){msgEl("iMsg","La clave debe tener 6 o más caracteres.",true);return}
   if(!perfil){msgEl("iMsg","Elegí un perfil.",true);return}
-  if(PERSONAL_DATOS.some(function(u){return u.usuario.toLowerCase()===usuario.toLowerCase()})){msgEl("iMsg","Ese usuario ya existe.",true);return}
+  var editando=PERSONAL_EDITANDO;
+  if(PERSONAL_DATOS.some(function(u){return u.id!==editando&&u.usuario.toLowerCase()===usuario.toLowerCase()})){msgEl("iMsg","Ese usuario ya existe.",true);return}
+  if(editando){
+    if(clave&&clave.length<6){msgEl("iMsg","La clave debe tener 6 o más caracteres.",true);return}
+    var cambios={firma:firma,usuario:usuario,perfil_id:perfil};
+    if(clave){var s2=aleatorio();cambios.salt=s2;cambios.clave_hash=sha256Js(s2+":"+clave)}
+    msgEl("iMsg","Actualizando en la nube...");
+    sbReq("PATCH","personal?id=eq."+encodeURIComponent(editando),cambios,{"Prefer":"return=minimal"}).then(function(){
+      cancelarEdicionPersonal();msgEl("iMsg","Personal actualizado: "+usuario);cargarPersonalNube();
+    },function(e){msgEl("iMsg","NO se actualizó en la nube ("+e.message+").",true)});
+    return;
+  }
+  if(clave.length<6){msgEl("iMsg","La clave debe tener 6 o más caracteres.",true);return}
   var salt=aleatorio();
   var hash=sha256Js(salt+":"+clave);
   msgEl("iMsg","Guardando en la nube...");
