@@ -252,6 +252,9 @@ a.btn{text-decoration:none;display:inline-block}
 .filtrosP label{display:grid;gap:4px;font-size:.78rem;color:#8fb0ba;flex:1 1 150px;min-width:140px}
 .filtrosP input,.filtrosP select{background:#020b14;color:#c8f6ff;border:1px solid rgba(51,232,255,.45);border-radius:8px;padding:8px 10px;font:inherit}
 .filtrosP .btn{flex:0 0 auto}
+.soloBar{display:flex;justify-content:center;margin:0 0 14px}
+.home.solo{grid-template-columns:1fr}
+.home.solo .side{display:none}
 </style>
 </head>
 <body>
@@ -1594,6 +1597,7 @@ function abrirModulo(k){
   for(var n in PANELES){$(PANELES[n]).hidden=(n!==k)}
   for(var m in ids){$(ids[m]).classList.toggle("on",m===k)}
   if(k==="personal"){$("spIngreso").hidden=true;$("spPerfiles").hidden=true}
+  if(k!=="alta")sinSolo();
   if(k==="generados")mostrarLista();
   if(k==="finalizados")mostrarFinalizados();
   var st=document.querySelector(".stage");if(st)st.scrollTop=0;
@@ -1604,7 +1608,7 @@ function altaCabecera(){
   $("pNombreTxt").textContent=SESION.nombre||"—";
 }
 function showHome(){
-  $("home").hidden=false;aplicarPermisos();altaCabecera();
+  $("home").hidden=false;sinSolo();aplicarPermisos();altaCabecera();
   var orden=["alta","personal","formacion","generados","finalizados"];
   var primero="generados";for(var i=0;i<orden.length;i++){if(puede(orden[i])){primero=orden[i];break}}
   abrirModulo(primero);
@@ -1798,6 +1802,23 @@ function ponerHeroes(){
   });
 }
 ponerHeroes();
+/* ---- Solo el formulario: oculta la barra de módulos y deja el formulario a pantalla completa ---- */
+function sinSolo(){var h=$("home");if(h)h.classList.remove("solo");var b=$("verSolo");if(b)b.textContent="VER SOLO EL FORMULARIO"}
+function toggleSoloFormulario(){
+  var h=$("home");
+  if(h.classList.contains("solo")){sinSolo();return}
+  h.classList.add("solo");$("verSolo").textContent="← VOLVER A MÓDULOS";
+  abrirModulo("alta");
+}
+function crearVerSolo(){
+  var pan=$("pAlta");if(!pan||$("verSolo"))return;
+  var bar=txtEl("div","soloBar");
+  var b=txtEl("button","btn sec","VER SOLO EL FORMULARIO");b.id="verSolo";b.type="button";
+  b.onclick=toggleSoloFormulario;bar.appendChild(b);
+  var hero=pan.querySelector(".pHero");
+  if(hero)hero.after(bar);else pan.insertBefore(bar,pan.firstChild);
+}
+crearVerSolo();
 </script>
 </body>
 </html>
